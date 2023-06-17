@@ -67,83 +67,59 @@ def db():
                 f.write(os.path.basename(filename))
     database.close()   
  
-request_count = 0
-
-
-def download_info_cad(cad_data_f_db):
-    global request_count
-    data = None
-    url = 'https://kadastr.live/api/parcels/' + str(cad_data_f_db) + '/history/?format=json'
-    try:
-        response = requests.get(url)
-        request_count += 1
-        if response.status_code == 200:
-            data = response.json()
-            print('Количество выполненных запросов:', request_count)
-            save_data_to_db(data)  # Сохранение данных в базу данных сразу после получения ответа
-        else:
-            print('Ошибка получения JSON-данных:', response.status_code, url)
-    except Exception:
-        database = psycopg2.connect(
-        host="localhost",
-        database="kadastr",
-        user="postgres",
-        password="102030"
-        )
-        cursor = database.cursor()
-        cursor.execute('INSERT INTO cadnumerror(cader) VALUES(%s);', (cad_data_f_db,))
-        database.close()
-    return data
-
-
-
-def save_data_to_db(data_filtered):
-    database = psycopg2.connect(
-    host="localhost",
-    database="kadastr",
-    user="postgres",
-    password="102030")
-
-    cursor = database.cursor()
-
-    if data_filtered is not None:
-        a = data_filtered['geometry']['coordinates']
-        string_a = ' , '.join(map(str, a))
-        cursor.execute('''INSERT INTO cadnum (
-            cad,
-            category,
-            area,
-            unit_area,
-            koatuu,
-            use,
-            purpose,
-           purpose_code,
-           ownership,
-            ownershipcode,
-           geometry,
-            address,
-            valuation_value,
-            valuation_date
-            )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);''',
-            (data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], data_filtered['ownership'], data_filtered['ownershipcode'], string_a, data_filtered['address'], data_filtered['valuation_value'], data_filtered['valuation_date']))
-    database.commit()
-    database.close()
-
-max_threads = 5
-
 database = psycopg2.connect(
     host="localhost",
     database="kadastr",
     user="postgres",
     password="102030"
-    )
+)
 cursor = database.cursor()
+
+def download_info_cad(cad_data_f_db):
+    data = None
+    url = 'https://kadastr.live/api/parcels/' + str(cad_data_f_db) + '/history/?format=json'
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            save_data_to_db(data)  # Сохранение данных в базу данных сразу после получения ответа
+        else:
+            print('Ошибка получения JSON-данных:', response.status_code, url)
+    except Exception:
+        cursor.execute('INSERT INTO cadnumerror(cader) VALUES(%s);', (cad_data_f_db,))
+
+def save_data_to_db(data_filtered):
+    try:
+        if data_filtered is not None:
+            a = data_filtered['geometry']['coordinates']
+            string_a = ' , '.join(map(str, a))
+            cursor.execute('''INSERT INTO cadnum (
+                cad,
+                category,
+                area,
+                unit_area,
+                koatuu,
+                use,
+                purpose,
+                purpose_code,
+                ownership,
+                ownershipcode,
+                geometry,
+                address,
+                valuation_value,
+                valuation_date
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);''',
+                (data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], data_filtered['ownership'], data_filtered['ownershipcode'], string_a, data_filtered['address'], data_filtered['valuation_value'], data_filtered['valuation_date']))
+            database.commit()
+    except Exception as e:
+        print('Ошибка сохранения данных в базу данных:', str(e))
+
+max_threads = 2
 
 cursor.execute("SELECT cad FROM cadnumtemp ")
 column_data_temp = cursor.fetchall()
 cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
-database.close()
 
 with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
     results = [executor.submit(download_info_cad, cad_data) for cad_data in cleaned_db_column_data_cad]
@@ -155,3 +131,5 @@ for future in cf.as_completed(results):
     counter += 1
     if counter % 100000 == 0:
         print('Процесс сохранения данных в базу данных:', counter)
+
+database.close()
