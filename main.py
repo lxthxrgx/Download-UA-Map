@@ -66,70 +66,59 @@ def db():
             with open("last_processed_file.txt", "w") as f:
                 f.write(os.path.basename(filename))
     database.close()   
- 
-database = psycopg2.connect(
-    host="localhost",
-    database="kadastr",
-    user="postgres",
-    password="102030"
-)
-cursor = database.cursor()
 
 def download_info_cad(cad_data_f_db):
-    data = None
-    url = 'https://kadastr.live/api/parcels/' + str(cad_data_f_db) + '/history/?format=json'
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            save_data_to_db(data)  # Сохранение данных в базу данных сразу после получения ответа
-        else:
-            print('Ошибка получения JSON-данных:', response.status_code, url)
-    except Exception:
-        cursor.execute('INSERT INTO cadnumerror(cader) VALUES(%s);', (cad_data_f_db,))
+        with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
+            with database.cursor() as cursor:
+                data = None
+                url = 'https://kadastr.live/api/parcels/' + str(cad_data_f_db) + '/history/?format=json'
+                try:
+                    response = requests.get(url)
+                    if response.status_code == 200:
+                        data = response.json()
+                        save_data_to_db(data, cursor, database)
+                    else:
+                        print('Ошибка получения JSON-данных:', response.status_code, url)
+                except Exception:
+                    cursor.execute('INSERT INTO cadnumerror(cader) VALUES(%s);', (cad_data_f_db,))
+                    database.commit()
+    except Exception as e:
+        print('Ошибка подключения к базе данных:', str(e))
 
-def save_data_to_db(data_filtered):
+def save_data_to_db(data_filtered, cursor, database):
     try:
         if data_filtered is not None:
             a = data_filtered['geometry']['coordinates']
             string_a = ' , '.join(map(str, a))
-            cursor.execute('''INSERT INTO cadnum (
-                cad,
-                category,
-                area,
-                unit_area,
-                koatuu,
-                use,
-                purpose,
-                purpose_code,
-                ownership,
-                ownershipcode,
-                geometry,
-                address,
-                valuation_value,
-                valuation_date
-                )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);''',
-                (data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], data_filtered['ownership'], data_filtered['ownershipcode'], string_a, data_filtered['address'], data_filtered['valuation_value'], data_filtered['valuation_date']))
+            cursor.execute(
+                'INSERT INTO cadnum (cad, category, area, unit_area, koatuu, use, purpose, purpose_code, ownership, ownershipcode, geometry, address, valuation_value, valuation_date) '
+                'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
+                (data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], data_filtered['ownership'], data_filtered['ownershipcode'], string_a, data_filtered['address'], data_filtered['valuation_value'], data_filtered['valuation_date'])
+            )
             database.commit()
     except Exception as e:
         print('Ошибка сохранения данных в базу данных:', str(e))
 
-max_threads = 2
+max_threads = 10
+with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
+    with database.cursor() as cursor:
+        cursor.execute("SELECT cad FROM cadnumtemp LIMIT 100000 OFFSET 6821")
+        column_data_temp = cursor.fetchall()
+        cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
+try:
+            with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
+                counter = 0
+                results = []
+                for cad_data in cleaned_db_column_data_cad:
+                    future = executor.submit(download_info_cad, cad_data)
+                    results.append(future)
 
-cursor.execute("SELECT cad FROM cadnumtemp ")
-column_data_temp = cursor.fetchall()
-cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
-
-with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
-    results = [executor.submit(download_info_cad, cad_data) for cad_data in cleaned_db_column_data_cad]
-
-counter = 0
-
-for future in cf.as_completed(results):
-    data_filtered = future.result()
-    counter += 1
-    if counter % 100000 == 0:
-        print('Процесс сохранения данных в базу данных:', counter)
-
-database.close()
+                for future in cf.as_completed(results):
+                    try:
+                        data_filtered = future.result()
+                        save_data_to_db(data_filtered, cursor, database)
+                    except Exception as e:
+                        print('Ошибка выполнения функции:', str(e))
+except Exception as e:
+    print('Ошибка подключения к базе данных:', str(e))
