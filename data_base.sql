@@ -22,3 +22,8 @@ CREATE TABLE cadnumtemp (cad TEXT);
 CREATE TABLE cadnumerror (cader TEXT);
 
 ALTER TABLE cadnum ADD CONSTRAINT unique_cad UNIQUE (cad);
+CREATE TABLE IF NOT EXISTS public.normalized_purpose
+(
+    purpose text COLLATE pg_catalog."default",
+    norm_purpose text COLLATE pg_catalog."default"
+)
