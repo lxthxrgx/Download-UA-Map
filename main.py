@@ -92,8 +92,22 @@ def save_data_to_db(data_filtered, cursor, database):
             a = data_filtered['geometry']['coordinates']
             string_a = ' , '.join(map(str, a))
             cursor.execute(
-                'INSERT INTO cadnum (cad, category, area, unit_area, koatuu, use, purpose, purpose_code, ownership, ownershipcode, geometry, address, valuation_value, valuation_date) '
-                'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
+                '''INSERT INTO cadnum(
+                    cad,
+                    category,
+                    area,
+                    unit_area,
+                    koatuu,
+                    use,
+                    purpose,
+                    purpose_code,
+                    ownership,
+                    ownershipcode,
+                    geometry,
+                    address,
+                    valuation_value,
+                    valuation_date) '
+                'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);''',
                 (data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], data_filtered['ownership'], data_filtered['ownershipcode'], string_a, data_filtered['address'], data_filtered['valuation_value'], data_filtered['valuation_date'])
             )
             database.commit()
