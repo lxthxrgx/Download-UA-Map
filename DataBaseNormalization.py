@@ -21,7 +21,7 @@ for number in normalized_data_from_file_list:
 
 with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
-        cursor.execute('CREATE TABLE IF NOT EXISTS normalized_purpose(purpose TEXT ,norm_purpose TEXT )')
+        cursor.execute('CREATE TABLE IF NOT EXISTS normalized_purpose(purpose TEXT ,purpose_info TEXT, norm_purpose TEXT )')
         #cursor.execute('ALTER TABLE normalized_purpose ADD CONSTRAINT unique_purpose UNIQUE (purpose);')
         for numbers in float_normalized_data_from_file_list:
             cursor.execute('INSERT INTO normalized_purpose (purpose) VALUES(%s);', (numbers,))
