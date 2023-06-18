@@ -22,7 +22,6 @@ def folder_check():
     return len(os.listdir(folder_path)) == 0
 
 cadnum_file = 'cadnum_data.txt'
-
 proxy_dict = proxy_h.proxy_protocol_test()
 headers_func = proxy_h.headers()
 
@@ -62,10 +61,8 @@ def db():
     cursor.close()                    
     database.close()   
 
-def download_info_cad(cad_data_f_db):
+def download_info_cad(cad_data_f_db, cursor, database):
     try:
-        with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
-            with database.cursor() as cursor:
                 data = None
                 url = 'https://kadastr.live/api/parcels/' + str(cad_data_f_db) + '/history/?format=json'
                 try:
@@ -112,23 +109,23 @@ def save_data_to_db(data_filtered, cursor, database):
 max_threads = 10
 with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
-        cursor.execute("SELECT cad FROM cadnumtemp LIMIT 500000 OFFSET 277489")
+        cursor.execute("SELECT cad FROM cadnumtemp LIMIT 500000 OFFSET 336758")
         column_data_temp = cursor.fetchall()
         cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
 
-    try:
-        with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
-            counter = 0
-            results = []
-            for cad_data in cleaned_db_column_data_cad:
-                future = executor.submit(download_info_cad, cad_data)
-                results.append(future)
+        try:
+            with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
+                counter = 0
+                results = []
+                for cad_data in cleaned_db_column_data_cad:
+                    future = executor.submit(download_info_cad, cad_data, cursor, database)
+                    results.append(future)
 
-            for future in cf.as_completed(results):
-                try:
-                    data_filtered = future.result()
-                    save_data_to_db(data_filtered, cursor, database)
-                except Exception as e:
-                    print('Ошибка выполнения функции:', str(e))
-    except Exception as e:
-        print('Ошибка подключения к базе данных:', str(e))
+                for future in cf.as_completed(results):
+                    try:
+                        data_filtered = future.result()
+                        save_data_to_db(data_filtered, cursor, database)
+                    except Exception as e:
+                        print('Ошибка выполнения функции:', str(e))
+        except Exception as e:
+            print('Ошибка подключения к базе данных:', str(e))
