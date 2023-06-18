@@ -1,23 +1,24 @@
-import io
 import re
 import psycopg2
 
-reader = io.open(r'practice\Downlaod UA Map\innertext1.txt', 'r', encoding='utf-8')
-text = reader.read()
+with open(r'practice\Downlaod UA Map\innertext1.txt', 'r', encoding='utf-8') as file:
+    lines = file.readlines()
+
+
 filter_file = r'[+]?\d{2}\.\d{2}'
-
-normalized_data_from_file_list = re.findall(filter_file, text)
-
-normalized_data_from_file_list = list(dict.fromkeys(normalized_data_from_file_list))
-
-result = ''.join(normalized_data_from_file_list)
-#
-float_normalized_data_from_file_list = []
+normalized_data_from_file_list = re.findall(filter_file, ''.join(lines))
+normalized_data_from_file_list = list(set(normalized_data_from_file_list))
 for number in normalized_data_from_file_list:
-    float_number = float(number)
-    if float_number <= 19:
-        if float_number != 12.11:
-            float_normalized_data_from_file_list.append(float_number)
+    if float(number) <= 19 and float(number) != 12.11:
+       float_normalized_data_from_file_list = float(number) 
+
+key = 'Для'
+result = None
+
+for line in lines:
+    if key in line:
+        result = line.strip()
+    print(result)
 
 with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
@@ -30,7 +31,7 @@ with psycopg2.connect(host="localhost", database="kadastr", user="postgres", pas
         for row in rows:
             value = row[0]
             cursor.execute('INSERT INTO normalized_purpose(norm_purpose) VALUES(%s);', (value,))
-#peredelat'
+
 database.commit()
 cursor.close()
-database.close()    
+database.close()
