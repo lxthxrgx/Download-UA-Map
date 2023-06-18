@@ -26,45 +26,40 @@ cadnum_file = 'cadnum_data.txt'
 proxy_dict = proxy_h.proxy_protocol_test()
 headers_func = proxy_h.headers()
 
-database = psycopg2.connect(
-    host="localhost",
-    database="kadastr",
-    user="postgres",
-    password="102030"
-    )
-cursor = database.cursor()
-
 def db():
+    
     start_y = 1149
     end_y = 1251
 
     start_x = 673-1
-    end_x =  740    
+    end_x =  740  
+
     filenames = [f"bf/{y}-{x}.pbf" for y in range(start_y, end_y+1) for x in range(start_x,end_x)]
     with open("last_processed_file.txt", "r") as f:
         last_processed_filename = 'bf/' + f.read()
-
     try:
         if last_processed_filename is not None:
             filenames = filenames[filenames.index(last_processed_filename)-1:]
     except ValueError as ve:
        print(colored(ve,'red'))
-    
-    for filename in filenames:
-        try:
-            with open(filename, 'rb') as f:
-                for line in f:
-                    data_dict = json.loads(line)
-                    features_list = data_dict["land_polygons"]["features"]
-                    for feature in features_list:
-                        data_d = feature['properties']['cadnum']
-                        cursor.execute("INSERT INTO cadnumtemp (cad) VALUES (%s);", (data_d,))
-                        database.commit() 
-        except Exception :
-            print(f'None Cadnum: {filename}')
-        else:
-            with open("last_processed_file.txt", "w") as f:
-                f.write(os.path.basename(filename))
+    with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
+        with database.cursor() as cursor:
+            for filename in filenames:
+                try:
+                    with open(filename, 'rb') as f:
+                        for line in f:
+                            data_dict = json.loads(line)
+                            features_list = data_dict["land_polygons"]["features"]
+                            for feature in features_list:
+                                data_d = feature['properties']['cadnum']
+                                cursor.execute("INSERT INTO cadnumtemp (cad) VALUES (%s);", (data_d,))
+                                database.commit() 
+                except Exception :
+                    print(f'None Cadnum: {filename}')
+                else:
+                    with open("last_processed_file.txt", "w") as f:
+                        f.write(os.path.basename(filename))
+    cursor.close()                    
     database.close()   
 
 def download_info_cad(cad_data_f_db):
@@ -117,22 +112,23 @@ def save_data_to_db(data_filtered, cursor, database):
 max_threads = 10
 with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
-        cursor.execute("SELECT cad FROM cadnumtemp LIMIT 100000 OFFSET 6821")
+        cursor.execute("SELECT cad FROM cadnumtemp LIMIT 500000 OFFSET 277489")
         column_data_temp = cursor.fetchall()
         cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
-try:
-            with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
-                counter = 0
-                results = []
-                for cad_data in cleaned_db_column_data_cad:
-                    future = executor.submit(download_info_cad, cad_data)
-                    results.append(future)
 
-                for future in cf.as_completed(results):
-                    try:
-                        data_filtered = future.result()
-                        save_data_to_db(data_filtered, cursor, database)
-                    except Exception as e:
-                        print('Ошибка выполнения функции:', str(e))
-except Exception as e:
-    print('Ошибка подключения к базе данных:', str(e))
+    try:
+        with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
+            counter = 0
+            results = []
+            for cad_data in cleaned_db_column_data_cad:
+                future = executor.submit(download_info_cad, cad_data)
+                results.append(future)
+
+            for future in cf.as_completed(results):
+                try:
+                    data_filtered = future.result()
+                    save_data_to_db(data_filtered, cursor, database)
+                except Exception as e:
+                    print('Ошибка выполнения функции:', str(e))
+    except Exception as e:
+        print('Ошибка подключения к базе данных:', str(e))
