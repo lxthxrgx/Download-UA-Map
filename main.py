@@ -30,7 +30,7 @@ def db():
     start_y = 1149
     end_y = 1251
 
-    start_x = 673-1
+    start_x = 672
     end_x =  740  
 
     filenames = [f"bf/{y}-{x}.pbf" for y in range(start_y, end_y+1) for x in range(start_x,end_x)]
