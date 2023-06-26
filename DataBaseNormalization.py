@@ -36,7 +36,7 @@ with psycopg2.connect(host="localhost", database="kadastr", user="postgres", pas
             value = row[0]
             cursor.execute('INSERT INTO normalized_purpose(norm_purpose) VALUES(%s);', (value,))
 
-def find_string(file_name, start_string, end_string):
+def find_string_between(file_name, start_string, end_string):
     purpose_list = []
     with open(file_name, 'r', encoding='utf-8') as file:
         found_start = False
@@ -49,14 +49,15 @@ def find_string(file_name, start_string, end_string):
                 break
             if found_start and not found_end:
                 stripped_line = line.strip()
-                if stripped_line not in purpose_list:
+                if any(c.isalpha() for c in stripped_line): 
                     purpose_list.append(stripped_line)
     return purpose_list
 
+# Пример использования
 file_name = 'F:\Prog\Py\practice\Downlaod UA Map\innertext1.txt'
 start_string = '01.01'
-end_string = '{Класифікація із змінами, внесеними згідно з Наказом Міністерства аграрної політики та продовольства № 587 від 28.09.2012, Наказом Міністерства регіонального розвитку, будівництва та житлово-комунального господарства № 287 від 12.11.2015, Наказом Міністерства аграрної політики та продовольства № 261 від 23.05.2017}'
-for i in find_string(file_name, start_string, end_string):
+end_string = '19.00'
+for i in find_string_between(file_name, start_string, end_string):
     print(i)
 
 database.commit()
