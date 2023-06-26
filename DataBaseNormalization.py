@@ -52,7 +52,7 @@ def find_string(file_name, start_string, end_string):
                 if stripped_line not in purpose_list:
                     purpose_list.append(stripped_line)
     return purpose_list
-# Пример использования
+
 file_name = 'F:\Prog\Py\practice\Downlaod UA Map\innertext1.txt'
 start_string = '01.01'
 end_string = '{Класифікація із змінами, внесеними згідно з Наказом Міністерства аграрної політики та продовольства № 587 від 28.09.2012, Наказом Міністерства регіонального розвитку, будівництва та житлово-комунального господарства № 287 від 12.11.2015, Наказом Міністерства аграрної політики та продовольства № 261 від 23.05.2017}'
