@@ -10,7 +10,7 @@ import psycopg2
 import proxyandheaders as proxy_h
 import threading
 import time
-
+from psycopg2.extras import Json
 def folder_check():
 
     folder_path = 'bf'
@@ -41,7 +41,7 @@ def db():
             filenames = filenames[filenames.index(last_processed_filename)-1:]
     except ValueError as ve:
        print(colored(ve,'red'))
-    with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
+    with psycopg2.connect(host="localhost", database="uamap", user="postgres", password="102030") as database:
         with database.cursor() as cursor:
             for filename in filenames:
                 try:
@@ -51,7 +51,7 @@ def db():
                             features_list = data_dict["land_polygons"]["features"]
                             for feature in features_list:
                                 data_d = feature['properties']['cadnum']
-                                cursor.execute("INSERT INTO cadnumtemp (cad) VALUES (%s);", (data_d,))
+                                cursor.execute("INSERT INTO cadnum_data (cadnum) VALUES (%s);", (data_d,))
                                 database.commit() 
                 except Exception :
                     print(f'None Cadnum: {filename}')
@@ -59,7 +59,7 @@ def db():
                     with open("last_processed_file.txt", "w") as f:
                         f.write(os.path.basename(filename))
     cursor.close()                    
-    database.close()   
+    database.close()    
 
 def download_info_cad(cad_data_f_db, cursor, database):
     start = time.time()
@@ -75,7 +75,7 @@ def download_info_cad(cad_data_f_db, cursor, database):
                 else:
                     print('Ошибка получения JSON-данных:', response.status_code, url)
             except Exception:
-                    cursor.execute('INSERT INTO cadnumerror(cader) VALUES(%s);', (cad_data_f_db,))
+                    cursor.execute('INSERT INTO error_cadnum_info(cadnum_error) VALUES(%s);', (cad_data_f_db,))
                     database.commit()
         except Exception as e:
             print('Ошибка подключения к базе данных:', str(e))
@@ -87,12 +87,10 @@ def save_data_to_db(data_filtered, cursor, database):
     start = time.time()
     try:
         if data_filtered is not None:
-            a = data_filtered['geometry']['coordinates']
-            string_a = ' , '.join(map(str, a))
             with lock:
                 cursor.execute(
-                    '''INSERT INTO cadnum(
-                        cad,
+                    '''INSERT INTO info_about_cadnum (
+                        cadnum,
                         category,
                         area,
                         unit_area,
@@ -102,16 +100,28 @@ def save_data_to_db(data_filtered, cursor, database):
                         purpose_code,
                         ownership,
                         ownershipcode,
-                        geometry,
+                        geom,
                         address,
                         valuation_value,
-                        valuation_date) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);''',
-                    (data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], data_filtered['ownership'], data_filtered['ownershipcode'], string_a, data_filtered['address'], data_filtered['valuation_value'], data_filtered['valuation_date'])
-                )
+                        valuation_date,
+                        geometry
+                        ) 
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                            ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 
+                            %s, %s, %s, %s
+                        );''',
+                            (
+                                data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], 
+                                data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], 
+                                data_filtered['ownership'], data_filtered['ownershipcode'], Json(data_filtered['geometry']), data_filtered['address'], 
+                                data_filtered['valuation_value'], data_filtered['valuation_date'], Json(data_filtered['geometry'])
+                            )
+                    )
+
                 database.commit()
     except Exception as e:
-        print('Ошибка сохранения данных в базу данных:', cursor.execute('INSERT INTO cadnumerror(cader) VALUES(%s);', (data_filtered['cadnum'],)))
+        print('Ошибка сохранения данных в базу данных:', cursor.execute('INSERT INTO error_cadnum_info(cadnum_error) VALUES(%s);', (data_filtered['cadnum'],)))
         print(e)
     end = time.time()
     execution = end - start
@@ -121,12 +131,12 @@ def save_data_to_db(data_filtered, cursor, database):
         print("Время выполнения save_data_to_db:", colored(execution,'green'), "секунд")
 
 
-max_threads = 2
+max_threads = 10
 
-with psycopg2.connect(host="localhost", database="kadastr", user="postgres", password="102030") as database:
+with psycopg2.connect(host="localhost", database="uamap", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
 
-        cursor.execute("SELECT cad FROM cadnumtemp LIMIT 1000000 OFFSET 14634243")
+        cursor.execute("SELECT cadnum FROM cadnum_data LIMIT 1000000 OFFSET 174247")
         column_data_temp = cursor.fetchall()
         cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
 
@@ -145,3 +155,5 @@ with psycopg2.connect(host="localhost", database="kadastr", user="postgres", pas
                         #print('Ошибка выполнения функции:', str(e))
         except Exception as e:
             print('Ошибка подключения к базе данных:', str(e))
+cursor.close()
+database.close()
