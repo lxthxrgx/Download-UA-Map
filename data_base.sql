@@ -37,9 +37,6 @@ CREATE TABLE IF NOT EXIST data_test
 	geometry text COLLATE pg_catalog."default"
 )
 	
-CREATE TABLE cadnumtemp (cad TEXT);
-
-CREATE TABLE cadnumerror (cader TEXT);
 
 ALTER TABLE cadnum ADD CONSTRAINT unique_cad UNIQUE (cad);
 CREATE TABLE IF NOT EXISTS public.normalized_purpose
