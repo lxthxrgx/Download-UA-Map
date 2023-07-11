@@ -3,7 +3,6 @@ import requests
 import concurrent.futures as cf
 import os
 import psycopg2
-from termcolor import colored
 
 def folder_check():
 
@@ -28,7 +27,7 @@ def db():
         if last_processed_filename is not None:
             filenames = filenames[filenames.index(last_processed_filename)-1:]
     except ValueError as ve:
-       print(colored(ve,'red'))
+       print(ve)
     with psycopg2.connect(host="localhost", database="uamap", user="postgres", password="102030") as database:
         with database.cursor() as cursor:
             for filename in filenames:
@@ -102,12 +101,12 @@ def save_data_to_db(data_filtered, cursor, database):
         print('Ошибка сохранения данных в базу данных:', cursor.execute('INSERT INTO error_cadnum_info(cadnum_error) VALUES(%s);', (data_filtered['cadnum'],)))
         print(e) 
 
-max_threads = 5
+max_threads = 20
 
 with psycopg2.connect(host="localhost", database="uamap", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
 
-        cursor.execute("SELECT cadnum FROM cadnum_data LIMIT 500000 OFFSET 991017")
+        cursor.execute("SELECT cadnum FROM cadnum_data LIMIT 500000 OFFSET 1335469")
         column_data_temp = cursor.fetchall()
         cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
         try:
