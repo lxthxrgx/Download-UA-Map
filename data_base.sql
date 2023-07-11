@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS public.info_about_cadnum
 (
-	id SERIAL PRIMARY KEY, 
+    id SERIAL PRIMARY KEY, 
     cadnum text COLLATE pg_catalog."default",
     category text COLLATE pg_catalog."default",
     area real COLLATE pg_catalog."default",
@@ -15,12 +15,12 @@ CREATE TABLE IF NOT EXISTS public.info_about_cadnum
     address text COLLATE pg_catalog."default",
     valuation_value real COLLATE pg_catalog."default",
     valuation_date numeric COLLATE pg_catalog."default",
-	geometry text COLLATE pg_catalog."default"
+    geometry text COLLATE pg_catalog."default"
 )
 
 CREATE TABLE IF NOT EXISTS data_test
 (
-	id SERIAL PRIMARY KEY, 
+    id SERIAL PRIMARY KEY, 
     cadnum text COLLATE pg_catalog."default",
     category text COLLATE pg_catalog."default",
     area real COLLATE pg_catalog."default",
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS data_test
     address text COLLATE pg_catalog."default",
     valuation_value real COLLATE pg_catalog."default",
     valuation_date numeric COLLATE pg_catalog."default",
-	geometry text COLLATE pg_catalog."default"
+    geometry text COLLATE pg_catalog."default"
 )
 
 
