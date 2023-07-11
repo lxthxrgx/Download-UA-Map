@@ -1,32 +1,20 @@
-import time
 import json
 import requests
-from collections import OrderedDict
-from termcolor import colored
-import time
 import concurrent.futures as cf
 import os
 import psycopg2
-import proxyandheaders as proxy_h
-import threading
-import time
-from psycopg2.extras import Json
+from termcolor import colored
+
 def folder_check():
 
     folder_path = 'bf'
 
     if not os.path.exists(folder_path):
-        print(colored('WARNINNG!!! folder does not exist', 'red'))
-        time.sleep(1)
-        print(colored('Creating folder...','yellow'))
-        print(colored('Folder created!', 'green'))
         os.makedirs("bf")
     return len(os.listdir(folder_path)) == 0
 
-cadnum_file = 'cadnum_data.txt'
-proxy_dict = proxy_h.proxy_protocol_test()
-headers_func = proxy_h.headers()
-lock = threading.RLock()
+#proxy_dict = proxy_h.proxy_protocol_test()
+#headers_func = proxy_h.headers()
 
 def db():
     start_y = 1149
@@ -62,8 +50,6 @@ def db():
     database.close()    
 
 def download_info_cad(cad_data_f_db, cursor, database):
-    start = time.time()
-    with lock:
         try:
             data = None
             url = 'https://kadastr.live/api/parcels/' + str(cad_data_f_db) + '/history/?format=json'
@@ -73,23 +59,19 @@ def download_info_cad(cad_data_f_db, cursor, database):
                     data = response.json()
                     save_data_to_db(data, cursor, database)
                 else:
-                    print('Ошибка получения JSON-данных:', response.status_code, url)
+                    print('Ошибка получения JSON-данных:', response.status_code, url), cursor.execute('INSERT INTO error_cadnum_info(cadnum_error) VALUES(%s);', (cad_data_f_db,))
             except Exception:
                     cursor.execute('INSERT INTO error_cadnum_info(cadnum_error) VALUES(%s);', (cad_data_f_db,))
                     database.commit()
         except Exception as e:
             print('Ошибка подключения к базе данных:', str(e))
-    end = time.time()
-    execution = end - start
-    print("Время выполнения download_info_cad:", execution, "секунд", 'Url:', url)
 
 def save_data_to_db(data_filtered, cursor, database):
-    start = time.time()
     try:
         if data_filtered is not None:
-            with lock:
-                cursor.execute(
-                    '''INSERT INTO info_about_cadnum (
+            string_my = json.dumps(data_filtered['geometry'])
+            cursor.execute(
+                    '''INSERT INTO data_test (
                         cadnum,
                         category,
                         area,
@@ -100,59 +82,40 @@ def save_data_to_db(data_filtered, cursor, database):
                         purpose_code,
                         ownership,
                         ownershipcode,
-                        geom,
                         address,
                         valuation_value,
                         valuation_date,
                         geometry
                         ) 
                         VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                            ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 
-                            %s, %s, %s, %s
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                         );''',
                             (
                                 data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], 
                                 data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], 
-                                data_filtered['ownership'], data_filtered['ownershipcode'], Json(data_filtered['geometry']), data_filtered['address'], 
-                                data_filtered['valuation_value'], data_filtered['valuation_date'], Json(data_filtered['geometry'])
+                                data_filtered['ownership'], data_filtered['ownershipcode'], data_filtered['address'], 
+                                data_filtered['valuation_value'], data_filtered['valuation_date'], string_my,
                             )
-                    )
-
-                database.commit()
+                            )
+            database.commit()
     except Exception as e:
         print('Ошибка сохранения данных в базу данных:', cursor.execute('INSERT INTO error_cadnum_info(cadnum_error) VALUES(%s);', (data_filtered['cadnum'],)))
-        print(e)
-    end = time.time()
-    execution = end - start
-    if execution == 0:
-        print("Время выполнения save_data_to_db:", colored(execution,'red'), "секунд")
-    else:
-        print("Время выполнения save_data_to_db:", colored(execution,'green'), "секунд")
+        print(e) 
 
-
-max_threads = 10
+max_threads = 5
 
 with psycopg2.connect(host="localhost", database="uamap", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
 
-        cursor.execute("SELECT cadnum FROM cadnum_data LIMIT 1000000 OFFSET 174247")
+        cursor.execute("SELECT cadnum FROM cadnum_data LIMIT 500000 OFFSET 991017")
         column_data_temp = cursor.fetchall()
         cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
-
         try:
             with cf.ThreadPoolExecutor(max_workers=max_threads) as executor:
                 results = []
                 for cad_data in cleaned_db_column_data_cad:
                     future = executor.submit(download_info_cad, cad_data, cursor, database)
                     results.append(future)
-
-                #for future in cf.as_completed(results):
-                    #try:
-                        #data_filtered = future.result()
-                        #save_data_to_db(data_filtered, cursor, database)
-                    #except Exception as e:
-                        #print('Ошибка выполнения функции:', str(e))
         except Exception as e:
             print('Ошибка подключения к базе данных:', str(e))
 cursor.close()
