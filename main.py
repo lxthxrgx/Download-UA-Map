@@ -3,7 +3,7 @@ import requests
 import concurrent.futures as cf
 import os
 import psycopg2
-
+import settings as settings
 def folder_check():
 
     folder_path = 'bf'
@@ -16,10 +16,10 @@ def folder_check():
 #headers_func = proxy_h.headers()
 
 def db():
-    start_y = 1149
-    start_x = 673-1
-    end_y = 1251
-    end_x =  740  
+    settings.start_x
+    settings.start_y
+    settings.end_x
+    settings.end_y
     filenames = [f"bf/{y}-{x}.pbf" for y in range(start_y, end_y+1) for x in range(start_x,end_x)]
     with open("last_processed_file.txt", "r") as f:
         last_processed_filename = 'bf/' + f.read()
