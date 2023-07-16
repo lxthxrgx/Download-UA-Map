@@ -20,7 +20,7 @@ def db():
     settings.start_y
     settings.end_x
     settings.end_y
-    filenames = [f"bf/{y}-{x}.pbf" for y in range(start_y, end_y+1) for x in range(start_x,end_x)]
+    filenames = [f"bf/{y}-{x}.pbf" for y in range(settings.start_y, settings.end_y+1) for x in range(settings.start_x,settings.end_x)]
     with open("last_processed_file.txt", "r") as f:
         last_processed_filename = 'bf/' + f.read()
     try:
