@@ -3,7 +3,7 @@ import requests
 import concurrent.futures as cf
 import os
 import psycopg2
-import settings as settings
+from psycopg2.extras import Json
 def folder_check():
 
     folder_path = 'bf'
@@ -16,11 +16,11 @@ def folder_check():
 #headers_func = proxy_h.headers()
 
 def db():
-    settings.start_x
-    settings.start_y
-    settings.end_x
-    settings.end_y
-    filenames = [f"bf/{y}-{x}.pbf" for y in range(settings.start_y, settings.end_y+1) for x in range(settings.start_x,settings.end_x)]
+    start_y = 1149
+    start_x = 673-1
+    end_y = 1251
+    end_x =  740  
+    filenames = [f"bf/{y}-{x}.pbf" for y in range(start_y, end_y+1) for x in range(start_x,end_x)]
     with open("last_processed_file.txt", "r") as f:
         last_processed_filename = 'bf/' + f.read()
     try:
@@ -38,7 +38,7 @@ def db():
                             features_list = data_dict["land_polygons"]["features"]
                             for feature in features_list:
                                 data_d = feature['properties']['cadnum']
-                                cursor.execute("INSERT INTO cadnum_data (cadnum) VALUES (%s);", (data_d,))
+                                cursor.execute("INSERT INTO cadnum_data_u (cadnum) VALUES (%s);", (data_d,))
                                 database.commit() 
                 except Exception :
                     print(f'None Cadnum: {filename}')
@@ -70,7 +70,7 @@ def save_data_to_db(data_filtered, cursor, database):
         if data_filtered is not None:
             string_my = json.dumps(data_filtered['geometry'])
             cursor.execute(
-                    '''INSERT INTO data_test (
+                    '''INSERT INTO data_test1 (
                         cadnum,
                         category,
                         area,
@@ -88,7 +88,8 @@ def save_data_to_db(data_filtered, cursor, database):
                         ) 
                         VALUES (
                             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        );''',
+                        )ON CONFLICT (cadnum)
+                        DO NOTHING;''',
                             (
                                 data_filtered['cadnum'], data_filtered['category'], data_filtered['area'], data_filtered['unit_area'], 
                                 data_filtered['koatuu'], data_filtered['use'], data_filtered['purpose'], data_filtered['purpose_code'], 
@@ -106,7 +107,7 @@ max_threads = 20
 with psycopg2.connect(host="localhost", database="uamap", user="postgres", password="102030") as database:
     with database.cursor() as cursor:
 
-        cursor.execute("SELECT cadnum FROM cadnum_data LIMIT 500000 OFFSET 1335469")
+        cursor.execute('''SELECT cadnum FROM cadnum_data_u WHERE check_t IS NULL LIMIT 1000000 ''')
         column_data_temp = cursor.fetchall()
         cleaned_db_column_data_cad = [item[0].replace('(', '').replace(')', '').replace(',', '') if item[0] is not None else '' for item in column_data_temp]
         try:
@@ -115,6 +116,10 @@ with psycopg2.connect(host="localhost", database="uamap", user="postgres", passw
                 for cad_data in cleaned_db_column_data_cad:
                     future = executor.submit(download_info_cad, cad_data, cursor, database)
                     results.append(future)
+                    cursor.execute('''UPDATE cadnum_data_u
+                                    SET check_t = TRUE
+                                    WHERE cadnum = %s;''', (cad_data,))
+                    database.commit()
         except Exception as e:
             print('Ошибка подключения к базе данных:', str(e))
 cursor.close()
